@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" >
+
+<title>Vmess+ws+tls搭建笔记 | Wen.jie</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
+<link rel="shortcut icon" href="https://jk9059.github.io/favicon.ico?v=1681269170334">
+<link rel="stylesheet" href="https://jk9059.github.io/styles/main.css">
+
+
+
+<link rel="stylesheet" href="https://unpkg.com/aos@next/dist/aos.css" />
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+
+
+
+    <meta name="description" content="VPS配置
+CPU：1
+内存：1 GB
+空间：17 GB（RAID 10）
+流量：3 TB / 月（1Gbps端口）
+IPv4：1     IPv6：0
+$10.98 / 年
+https://my.racknerd.com/aff.php?..." />
+    <meta name="keywords" content="V2ray" />
+  </head>
+  <body>
+    <div id="app" class="main">
+
+      <div class="sidebar" :class="{ 'full-height': menuVisible }">
+  <div class="top-container" data-aos="fade-right">
+    <div class="top-header-container">
+      <a class="site-title-container" href="https://jk9059.github.io">
+        <img src="https://jk9059.github.io/images/avatar.png?v=1681269170334" class="site-logo">
+        <h1 class="site-title">Wen.jie</h1>
+      </a>
+      <div class="menu-btn" @click="menuVisible = !menuVisible">
+        <div class="line"></div>
+      </div>
+    </div>
+    <div>
+      
+        
+          <a href="/" class="site-nav">
+            首页
+          </a>
+        
+      
+        
+          <a href="/archives" class="site-nav">
+            归档
+          </a>
+        
+      
+        
+          <a href="/tags" class="site-nav">
+            标签
+          </a>
+        
+      
+        
+          <a href="/post/about" class="site-nav">
+            关于
+          </a>
+        
+      
+    </div>
+  </div>
+  <div class="bottom-container" data-aos="flip-up" data-aos-offset="0">
+    <div class="social-container">
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    </div>
+    <div class="site-description">
+      温故而知新
+    </div>
+    <div class="site-footer">
+      Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a> | <a class="rss" href="https://jk9059.github.io/atom.xml" target="_blank">RSS</a>
+    </div>
+  </div>
+</div>
+
+
+      <div class="main-container">
+        <div class="content-container" data-aos="fade-up">
+          <div class="post-detail">
+            <h2 class="post-title">Vmess+ws+tls搭建笔记</h2>
+            <div class="post-date">2023-03-29</div>
+            
+              <div class="feature-container" style="background-image: url('https://jk9059.github.io/post-images/vmesswstls-note.png')">
+              </div>
+            
+            <div class="post-content" v-pre>
+              <h1 id="vps配置">VPS配置</h1>
+<p>CPU：1<br>
+内存：1 GB<br>
+空间：17 GB（RAID 10）<br>
+流量：3 TB / 月（1Gbps端口）<br>
+IPv4：1     IPv6：0<br>
+$10.98 / 年<br>
+<a href="https://my.racknerd.com/aff.php?aff=7324&amp;pid=358">https://my.racknerd.com/aff.php?aff=7324&amp;pid=358</a></p>
+<p>这个配置拿来搭代理刚刚好，一年11$，每个月3T的流量，还是1Gbps的端口。最主要的还是IP还支持解锁Tiktok和ChatGPT。NetFlix不持支，但是套个IPv6就可以解锁了</p>
+<h1 id="服务器配置">服务器配置</h1>
+<p>系统是<code>Ubuntu20.04</code></p>
+<h2 id="1更新packages更行软件">1.更新Packages&amp;更行软件</h2>
+<pre><code class="language-bash">#切换到root
+sudo -i
+#升级Packages
+apt update -y
+#更新软件
+apt upgrade -y
+</code></pre>
+<h2 id="2安装常用软件">2.安装常用软件</h2>
+<pre><code class="language-bash">#安装wget、curl、vim、git、net-tools、lrzsz
+apt install wget curl vim git net-tools lrzsz -y
+</code></pre>
+<h2 id="3修改系统时区">3.修改系统时区</h2>
+<h2 id=""></h2>
+<pre><code class="language-bash">#搜索列表是否有Shanghai
+timedatectl list-timezones | grep Shanghai
+#设置时区为Shanghai时区
+sudo timedatectl set-timezone Asia/Shanghai
+#查看系统时间
+date -R
+</code></pre>
+<blockquote>
+<p>VMess 协议的认证基于时间，一定要保证服务器和客户端的系统时间相差要在 90 秒以内</p>
+</blockquote>
+<h2 id="4开启tcp-bbr-拥塞控制算法">4.开启TCP BBR 拥塞控制算法</h2>
+<p>来自：<a href="https://teddysun.com/489.html">秋水逸冰</a></p>
+<pre><code class="language-bash">#下载脚本
+wget --no-check-certificate -O /opt/bbr.sh https://github.com/teddysun/across/raw/master/bbr.sh
+#修改脚本权限
+chmod 755 /opt/bbr.sh
+#运行脚本
+/opt/bbr.sh
+</code></pre>
+<blockquote>
+<p>注意：需要4.9及以上的内核才可以开bbr，因为前面upgrade已经把内核也一起更新了，所以运行这个脚本可以直接开启，无需再重启系统。</p>
+</blockquote>
+<h3 id="41检查是否成功开启bbr">4.1检查是否成功开启bbr</h3>
+<pre><code class="language-bash">uname -r   #查看内核版本
+</code></pre>
+<pre><code class="language-bash">sysctl net.ipv4.tcp_available_congestion_control
+</code></pre>
+<p>返回值一般为：</p>
+<p><code>net.ipv4.tcp_available_congestion_control = reno cubic bbr</code></p>
+<pre><code class="language-bash">sysctl net.ipv4.tcp_congestion_control
+</code></pre>
+<p>返回值一般为：</p>
+<p><code>net.ipv4.tcp_congestion_control = bbr</code></p>
+<pre><code class="language-bash">sysctl net.core.default_qdisc
+</code></pre>
+<p>返回值一般为：</p>
+<p><code>net.core.default_qdisc = fq</code></p>
+<pre><code class="language-bash">lsmod | grep bbr
+</code></pre>
+<p>返回值有tcp_bbr就说明bbr已启动</p>
+<p><code>tcp_bbr            20480 125</code></p>
+<h2 id="5修改ssh端口-可选">5.修改SSH端口 [可选]</h2>
+<p>默认的端口是22，大家都知道的东西，还有是一定风险的，防止别人暴力破解</p>
+<pre><code class="language-bash">#修改配置
+vim /etc/ssh/sshd_config
+#在大概15行的位置
+#Port 22
+把'#'删除，修改'22'然后保存→ Port xxxx
+#重启sshd服务
+sudo service sshd restart
+#为了保证服务器不会失联，重启完sshd服务后，新建一个会话尝试是否能连接服务器
+</code></pre>
+<h1 id="搭建vmeswebsockettls">搭建Vmes+WebSocket+TLS</h1>
+<blockquote>
+<p>搭建这套代理需要有域名，同时需要套Cloudflare</p>
+</blockquote>
+<h2 id="1把域名添加到cloudflare的nameservers下">1.把域名添加到Cloudflare的NameServers下</h2>
+<h2 id="2给域名添加一个a解析">2.给域名添加一个A解析</h2>
+<p>这个A解析的域名是用来伪装地址的，<strong>在进行第三步前不要把小云朵打开</strong></p>
+<h2 id="3安装服务">3.安装服务</h2>
+<pre><code class="language-bash">#运行脚本
+wget https://git.io/tcp-wss.sh &amp;&amp; bash tcp-wss.sh
+</code></pre>
+<p>这个脚本里面包含了：</p>
+<p>安装并配置Nginx</p>
+<p>自动为域名申请SSL证书</p>
+<p>配置Vmess协议</p>
+<h2 id="4前置cloudflare">4.前置Cloudflare</h2>
+<h3 id="41-开启ssltls">4.1 开启SSL/TLS</h3>
+<p>操作路径：点击SSL/TLS→Overview→选择Full或Full(strict)</p>
+<figure data-type="image" tabindex="1"><img src="https://jk9059.github.io/post-images/1681268741679.png" alt="" loading="lazy"></figure>
+<h3 id="42-清理缓存">4.2 清理缓存</h3>
+<p>清理CF缓存，点击 Caching &gt; Configuration &gt; 点击 Purge Everything 清理所有缓存</p>
+<figure data-type="image" tabindex="2"><img src="https://jk9059.github.io/post-images/1681268826803.png" alt="" loading="lazy"></figure>
+<h3 id="43-开启dns代理">4.3 开启DNS代理</h3>
+<p>把小云朵打开（实际上不打开一样有效，但是在运行脚本前不能打开，否则会安装失败）</p>
+<h2 id="5连接代理">5.连接代理</h2>
+<p>安装成功后终端会显示配置参数：</p>
+<pre><code class="language-bash">===========配置参数=============
+地址：${domain}
+端口：443/8080
+UUID：${v2uuid}
+加密方式：aes-128-gcm
+传输协议：ws
+路径：/${v2path}
+底层传输：tls
+注意：8080是免流端口不需要打开tls
+</code></pre>
+<p>依照参数到客户端进行配置</p>
+<figure data-type="image" tabindex="3"><img src="https://jk9059.github.io/post-images/1681268927951.png" alt="" loading="lazy"></figure>
+<h2 id="修改nginx配置">修改Nginx配置</h2>
+<p>通过观察脚本的源代码，我们可以知道，我们的域名根路径<code>/</code>的代理内容是只有<code>Hello World</code></p>
+<p>的，如果我们的服务器流量跑大了之后，被防火墙检测到只有两个单词的页面天天跑那么多流量肯定会被怀疑，所以我们需要修改根路径 <code>/</code> 的反代目标地址，找一个看起来就能用很多流量的网站，一般推荐一些自建的网盘地址，符合天天大流量的可能特征</p>
+<p>这是脚本里自动配置的内容：</p>
+<pre><code class="language-bash">location / {
+            default_type text/plain;
+            return 200 &quot;Hello World !&quot;;
+        }
+</code></pre>
+<p>把这一段的内容替换成下面这段：</p>
+<p><code>https://www.fan-2000.com</code>  这个网盘地址是在Google随便找的</p>
+<pre><code class="language-bash">location / {
+            proxy_pass https://www.fan-2000.com;
+            proxy_redirect off;
+            proxy_ssl_server_name on;
+            sub_filter_once off;
+            sub_filter &quot;fan-2000.com&quot; $server_name;
+            proxy_set_header Host &quot;fan-2000.com&quot;;
+            proxy_set_header Referer $http_referer;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header User-Agent $http_user_agent;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+            proxy_set_header Accept-Encoding &quot;&quot;;
+            proxy_set_header Accept-Language &quot;zh-CN&quot;;
+        }
+</code></pre>
+<p>修改后保存并退出，然后重新加载Nginx配置</p>
+<pre><code class="language-bash">systemctl reload nginx
+</code></pre>
+<p>至此，一套Vmess+ws+tls代理就搭建完成了。</p>
+
+            </div>
+            
+              <div class="tag-container">
+                
+                  <a href="https://jk9059.github.io/tag/v2ray/" class="tag">
+                    V2ray
+                  </a>
+                
+              </div>
+            
+            
+              <div class="next-post">
+                <div class="next">下一篇</div>
+                <a href="https://jk9059.github.io/post/hello-gridea/">
+                  <h3 class="post-title">
+                    Hello Gridea
+                  </h3>
+                </a>
+              </div>
+            
+
+            
+
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/aos@next/dist/aos.js"></script>
+<script type="application/javascript">
+
+AOS.init();
+
+var app = new Vue({
+  el: '#app',
+  data: {
+    menuVisible: false,
+  },
+})
+
+</script>
+
+
+  <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  <script>
+    hljs.initHighlightingOnLoad()
+  </script>
+
+
+
+
+
+  </body>
+</html>
